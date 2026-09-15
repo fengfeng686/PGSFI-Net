@@ -1,0 +1,100 @@
+import torch
+import torch.nn as nn
+from models.unet_parts import *
+from models.spatial_freq_domain import (
+    VesselPriorExtractor,
+    Plain_Four_SAFM_Block,
+)
+
+
+class PGSFINetSAPFBSAA(nn.Module):
+    """渐进式添加：baseline(UNet factor=4) + SAP（先验模块） + FBSAA"""
+
+    def __init__(self, n_channels, n_classes, downsize_nb_filters_factor=4, dropout_rate=0.1):
+        super(PGSFINetSAPFBSAA, self).__init__()
+        f = downsize_nb_filters_factor
+
+        self.inc = inconv(n_channels, 64 // f)
+        self.down1 = down(64 // f, 128 // f)
+        self.down2 = down(128 // f, 256 // f)
+        self.down3 = down(256 // f, 512 // f)
+        self.down4 = down(512 // f, 512 // f)
+
+        self.four_block3 = Plain_Four_SAFM_Block(512 // f)
+        self.four_block4 = Plain_Four_SAFM_Block(512 // f)
+
+        self.prior_extractor = VesselPriorExtractor(in_channels=1, out_channels=64 // f)
+
+        self.prior_p5 = nn.Sequential(
+            nn.MaxPool2d(16),
+            nn.Conv2d(64 // f, 512 // f, 3, 1, 1),
+            nn.BatchNorm2d(512 // f),
+            nn.ReLU(inplace=True)
+        )
+        self.prior_up1 = nn.Sequential(
+            nn.MaxPool2d(8),
+            nn.Conv2d(64 // f, 256 // f, 3, 1, 1),
+            nn.BatchNorm2d(256 // f),
+            nn.ReLU(inplace=True)
+        )
+        self.prior_up2 = nn.Sequential(
+            nn.MaxPool2d(4),
+            nn.Conv2d(64 // f, 128 // f, 3, 1, 1),
+            nn.BatchNorm2d(128 // f),
+            nn.ReLU(inplace=True)
+        )
+        self.prior_up3 = nn.Sequential(
+            nn.MaxPool2d(2),
+            nn.Conv2d(64 // f, 64 // f, 3, 1, 1),
+            nn.BatchNorm2d(64 // f),
+            nn.ReLU(inplace=True)
+        )
+        self.prior_up4 = nn.Sequential(
+            nn.Conv2d(64 // f, 64 // f, 3, 1, 1),
+            nn.BatchNorm2d(64 // f),
+            nn.ReLU(inplace=True)
+        )
+
+        self.up1 = up(1024 // f, 256 // f)
+        self.up2 = up(512 // f, 128 // f)
+        self.up3 = up(256 // f, 64 // f)
+        self.up4 = up(128 // f, 64 // f)
+
+        self.outc = nn.Conv2d(64 // f + 1, n_classes, 1)
+
+    def forward(self, inp):
+        prior = self.prior_extractor(inp)
+
+        p5 = self.prior_p5(prior)
+        p_up1 = self.prior_up1(prior)
+        p_up2 = self.prior_up2(prior)
+        p_up3 = self.prior_up3(prior)
+        p_up4 = self.prior_up4(prior)
+
+        x1 = self.inc(inp)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+
+        x4 = self.down3(x3)
+        x4 = self.four_block3(x4)
+
+        x5 = self.down4(x4)
+        x5 = self.four_block4(x5)
+
+        x5 = x5 + p5
+
+        x = self.up1(x5, x4)
+        x = x + p_up1
+
+        x = self.up2(x, x3)
+        x = x + p_up2
+
+        x = self.up3(x, x2)
+        x = x + p_up3
+
+        x = self.up4(x, x1)
+        x = x + p_up4
+
+        x = torch.cat([inp, x], dim=1)
+        x = self.outc(x)
+        return torch.sigmoid(x)
