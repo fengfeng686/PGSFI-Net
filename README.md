@@ -10,6 +10,10 @@ PGSFI-Net is designed for pixel-level retinal vessel segmentation from color fun
 
 The implementation uses image patches during training and overlapping patches during inference. By default, the model uses `48 x 48` patches and reconstructs full-resolution vessel segmentation maps from overlapping predictions.
 
+## Dataset
+
+[DRIVE](http://www.isi.uu.nl/Research/Databases/DRIVE/), [STARE](http://cecas.clemson.edu/~ahoover/stare/), [CHASE_DB](https://blogs.kingston.ac.uk/retinal/chasedb1/)
+
 ## Repository Structure
 
 ```text
@@ -36,7 +40,4 @@ PGSFI-Net/
     ├── help_functions.py          # HDF5 and visualization utilities
     └── layers.py                  # Network layers
 
-    
-## Dataset
 
-[DRIVE](http://www.isi.uu.nl/Research/Databases/DRIVE/), [STARE](http://cecas.clemson.edu/~ahoover/stare/), [CHASE_DB](https://blogs.kingston.ac.uk/retinal/chasedb1/)
