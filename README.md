@@ -12,7 +12,7 @@ The implementation uses image patches during training and overlapping patches du
 
 ## Repository Structure
 
-
+```text
 PGSFI-Net/
 ├── configuration.txt              # Dataset paths and experiment settings
 ├── prepare_dataset.py             # Convert original datasets to HDF5 files
